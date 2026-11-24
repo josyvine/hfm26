@@ -4,28 +4,42 @@ apply plugin: 'com.android.application'
 
 android {
     namespace 'com.vineyard.hfm.app'
-    compileSdkVersion 34
+    compileSdkVersion 36
+    ndkVersion "28.0.12433566"
 
     defaultConfig {
         applicationId "com.vineyard.hfm.app"
         minSdkVersion 23
-        targetSdkVersion 34
+        targetSdkVersion 36
         versionCode 1
         versionName "1.0"
+
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17", "-fvisibility=hidden", "-O3"
+                arguments "-DANDROID_LD=lld", "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+            }
+        }
+
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+        }
     }
 
     signingConfigs {
         release {
-            storeFile file("release.jks")
+            def keystorePath = System.getenv("KEYSTORE_PATH") ?: (file("safevoice.jks").exists() ? "safevoice.jks" : "release.jks")
+            storeFile file(keystorePath)
             storePassword System.getenv("KEYSTORE_PASSWORD")
             keyAlias System.getenv("KEY_ALIAS")
-            keyPassword System.getenv("KEY_PASSWORD")
+            keyPassword System.getenv("KEY_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD")
         }
     }
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
         }
@@ -34,12 +48,22 @@ android {
         }
     }
 
+    externalNativeBuild {
+        cmake {
+            path file("src/main/cpp/CMakeLists.txt")
+            version "3.22.1"
+        }
+    }
+
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
 
     packagingOptions {
+        jniLibs {
+            useLegacyPackaging = false
+        }
         exclude 'META-INF/LGPL2.1'
         exclude 'META-INF/LICENSE'
         exclude 'META-INF/NOTICE'
