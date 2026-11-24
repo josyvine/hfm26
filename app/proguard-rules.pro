@@ -90,3 +90,10 @@
 # LZ4 Compression library (app/libs/lz4-java-1.5.0.jar)
 -keep class net.jpountz.** { *; }
 -dontwarn net.jpountz.**
+
+# Optional runtime dependencies referenced by PDFBox, OkHttp, and SLF4J
+-dontwarn com.gemalto.jp2.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.conscrypt.**
+-dontwarn org.openjsse.**
+-dontwarn org.slf4j.impl.**
