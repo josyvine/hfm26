@@ -791,7 +791,7 @@ public class MainActivity extends Activity {
                     })
                     .setNeutralButton("Hide Slider Icons Now", new DialogInterface.OnClickListener() {
                         @Override
-                        public void onClick(DialogInterface dialog, int which) {
+                        public void onClick(DialogInterface dialog, int which)
                             prefs.edit().putString("stealth_method", "MAP")
                                     .putBoolean("is_stealth_hidden", true).apply();
                             Toast.makeText(MainActivity.this, "Slider Icons Hidden!\nTap header 5 times or long-press to unlock via Map.", Toast.LENGTH_LONG).show();
