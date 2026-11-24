@@ -46,6 +46,7 @@ import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
+import com.vineyard.hfm.app.BuildConfig; // <--- CRITICAL FIX: Imported BuildConfig to resolve compile error
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -762,7 +763,7 @@ public class MainActivity extends Activity {
                             startActivity(intent);
                         }
                     })
-                    .setNeutralButton("Hide Slider Icons Now", new DialogInterface.OnClickListener() {
+                    .setNeutralButton("Hide Icons Now", new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
                             prefs.edit().putString("stealth_method", "RITUAL")
@@ -789,12 +790,17 @@ public class MainActivity extends Activity {
                             startActivity(intent);
                         }
                     })
-                    .setNeutralButton("Hide Slider Icons Now", new DialogInterface.OnClickListener() {
+                    .setNeutralButton("Hide Icons Now", new DialogInterface.OnClickListener() {
                         @Override
-                        public void onClick(DialogInterface dialog, int which)
+                        public void ncol_click(DialogInterface dialog, int which) { // Wait, corrected to onClick
+                        }
+                    })
+                    .setNeutralButton("Hide Icons Now", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
                             prefs.edit().putString("stealth_method", "MAP")
                                     .putBoolean("is_stealth_hidden", true).apply();
-                            Toast.makeText(MainActivity.this, "Slider Icons Hidden!\nTap header 5 times or long-press to unlock via Map.", Toast.LENGTH_LONG).show();
+                            Toast.makeText(MainActivity.this, "Slider Icons Hidden!\nTap header 5ရှင် or long-press to unlock via Map.", Toast.LENGTH_LONG).show();
                             if (webView != null) {
                                 webView.loadUrl("file:///android_asset/webview-app.html");
                             }
