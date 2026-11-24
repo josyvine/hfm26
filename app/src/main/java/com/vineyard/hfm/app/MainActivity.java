@@ -792,15 +792,10 @@ public class MainActivity extends Activity {
                     })
                     .setNeutralButton("Hide Icons Now", new DialogInterface.OnClickListener() {
                         @Override
-                        public void ncol_click(DialogInterface dialog, int which) { // Wait, corrected to onClick
-                        }
-                    })
-                    .setNeutralButton("Hide Icons Now", new DialogInterface.OnClickListener() {
-                        @Override
                         public void onClick(DialogInterface dialog, int which) {
                             prefs.edit().putString("stealth_method", "MAP")
                                     .putBoolean("is_stealth_hidden", true).apply();
-                            Toast.makeText(MainActivity.this, "Slider Icons Hidden!\nTap header 5ရှင် or long-press to unlock via Map.", Toast.LENGTH_LONG).show();
+                            Toast.makeText(MainActivity.this, "Slider Icons Hidden!\nTap header 5 times or long-press to unlock via Map.", Toast.LENGTH_LONG).show();
                             if (webView != null) {
                                 webView.loadUrl("file:///android_asset/webview-app.html");
                             }
