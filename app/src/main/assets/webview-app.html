@@ -33,6 +33,9 @@
   .app-title {
       flex-grow: 1;
       text-align: center;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
   }
   .app-navigation {
     display: flex;
@@ -239,7 +242,7 @@
 		  <button class="icon-btn" id="leftPanelToggle" title="Toggle Controls Panel" style="display: none;"> <!-- Hide this button as it's not needed -->
 		  </button>
 		</div>
-		<div class="app-title">Hybrid File Manager</div>
+		<div class="app-title" id="mainHeaderTitle" title="Tap repeatedly or long-press to manage Stealth">Hybrid File Manager</div>
 		<div class="header-right-placeholder" style="width: 88px;"></div>
 	  </header>
 
@@ -465,11 +468,12 @@ document.addEventListener("DOMContentLoaded", function() {
     const readerBtn = document.getElementById('readerBtn');
     const storageMapBtn = document.getElementById('storageMapBtn');
     const hideFileBtn = document.getElementById('hideFileBtn');
-    const stealthBtn = document.getElementById('stealthBtn'); // NEW
+    const stealthBtn = document.getElementById('stealthBtn');
     const themeBtn = document.getElementById('themeBtn');
     const themeModal = document.getElementById('themeModal');
     const dropModal = document.getElementById('dropModal'); 
     const geminiBtn = document.getElementById('geminiBtn');
+    const mainHeaderTitle = document.getElementById('mainHeaderTitle');
     
     // Modal setup buttons
     const modalSetupBtn = document.getElementById('modalSetupBtn');
@@ -500,7 +504,7 @@ document.addEventListener("DOMContentLoaded", function() {
         readerBtn.onclick = function() { callAndroid('openReader'); };
         storageMapBtn.onclick = function() { callAndroid('openStorageMap'); };
         hideFileBtn.onclick = function() { callAndroid('onHideIconTapped'); };
-        if (stealthBtn) stealthBtn.onclick = function() { callAndroid('openStealthManager'); }; // NEW
+        if (stealthBtn) stealthBtn.onclick = function() { callAndroid('openStealthManager'); };
         geminiBtn.onclick = function() { callAndroid('openApiKeyDialog'); };
         
         document.getElementById('tab-editor').onclick = function() { alert('Editor functionality placeholder.'); };
@@ -533,6 +537,7 @@ document.addEventListener("DOMContentLoaded", function() {
         driveAuthBtn.onclick = function() { callAndroid('toggleDriveAuth'); };
         viewDriveBtn.onclick = function() { callAndroid('openDriveViewer'); closeDropModal(); };
 
+        setupHeaderStealthTrigger();
         checkStealthVisibility();
         setupSwipeToRefresh();
     }
@@ -549,6 +554,43 @@ document.addEventListener("DOMContentLoaded", function() {
                 if (stealthBtn) stealthBtn.style.display = 'flex';
             }
         }
+    }
+    window.checkStealthVisibility = checkStealthVisibility;
+
+    // IN-APP STEALTH TRIGGER (HEADER 5-TAP OR 1.2s LONG PRESS)
+    function setupHeaderStealthTrigger() {
+        if (!mainHeaderTitle) return;
+
+        let tapCount = 0;
+        let tapTimer = null;
+        let pressTimer = null;
+
+        // 1. Multi-tap trigger (5 taps within 2.5s)
+        mainHeaderTitle.addEventListener('click', function() {
+            tapCount++;
+            clearTimeout(tapTimer);
+            tapTimer = setTimeout(function() { tapCount = 0; }, 2500);
+
+            if (tapCount >= 5) {
+                tapCount = 0;
+                callAndroid('triggerStealthUnlock');
+            }
+        });
+
+        // 2. Long-press trigger (hold for 1.2 seconds)
+        mainHeaderTitle.addEventListener('touchstart', function() {
+            pressTimer = setTimeout(function() {
+                callAndroid('triggerStealthUnlock');
+            }, 1200);
+        }, { passive: true });
+
+        mainHeaderTitle.addEventListener('touchend', function() {
+            clearTimeout(pressTimer);
+        }, { passive: true });
+
+        mainHeaderTitle.addEventListener('touchmove', function() {
+            clearTimeout(pressTimer);
+        }, { passive: true });
     }
 
     // EXPOSED FUNCTION FOR ANDROID TO UPDATE UI
