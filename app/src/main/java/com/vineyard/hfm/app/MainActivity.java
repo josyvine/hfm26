@@ -83,8 +83,10 @@ public class MainActivity extends Activity {
         webSettings.setAllowFileAccess(true);
         webSettings.setAllowContentAccess(true);
         webView.setBackgroundColor(0x00000000);
+        
+        // Gate WebView debugging behind BuildConfig.DEBUG for Play Store security compliance
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            WebView.setWebContentsDebuggingEnabled(true);
+            WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
         }
         webView.addJavascriptInterface(new WebAppInterface(this), "Android");
 
@@ -99,6 +101,15 @@ public class MainActivity extends Activity {
             webView.restoreState(savedInstanceState);
         } else {
             webView.loadUrl("file:///android_asset/webview-app.html");
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Automatically re-evaluate and refresh stealth icon visibility when returning to MainActivity
+        if (webView != null) {
+            webView.evaluateJavascript("if (typeof window.checkStealthVisibility === 'function') { window.checkStealthVisibility(); }", null);
         }
     }
 
@@ -242,14 +253,6 @@ public class MainActivity extends Activity {
             } else {
                 requestNotificationPermission();
             }
-        }
-
-        // REQUEST DIALER INTERCEPTION PERMISSIONS FOR STEALTH LAUNCH
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.PROCESS_OUTGOING_CALLS) != PackageManager.PERMISSION_GRANTED) {
-            permissionsNeeded.add(Manifest.permission.PROCESS_OUTGOING_CALLS);
-        }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-            permissionsNeeded.add(Manifest.permission.READ_PHONE_STATE);
         }
 
         if (!permissionsNeeded.isEmpty()) {
@@ -657,54 +660,148 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void triggerStealthUnlock() {
+            SharedPreferences prefs = getSharedPreferences("hfm_stealth_prefs", Context.MODE_PRIVATE);
+            boolean isHidden = prefs.getBoolean("is_stealth_hidden", false);
+            if (isHidden) {
+                Intent intent = new Intent(mContext, StealthUnlockActivity.class);
+                mContext.startActivity(intent);
+            }
+        }
+
+        @JavascriptInterface
         public void openStealthManager() {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    SharedPreferences prefs = getSharedPreferences("hfm_stealth_prefs", Context.MODE_PRIVATE);
-                    String currentPin = prefs.getString("stealth_pin", "");
+                    final SharedPreferences prefs = getSharedPreferences("hfm_stealth_prefs", Context.MODE_PRIVATE);
+
+                    final String[] options = new String[]{
+                            "1. Secret 4-digit PIN",
+                            "2. Physical Sensor Ritual (Taps, Shakes, Orientation)",
+                            "3. Map Coordinate Fallback"
+                    };
 
                     AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-                    LayoutInflater inflater = getLayoutInflater();
-                    View dialogView = inflater.inflate(R.layout.dialog_send_drop, null);
-                    final AutoCompleteTextView pinInput = dialogView.findViewById(R.id.edit_text_receiver_username);
-                    pinInput.setHint("Set 4-digit Secret PIN (e.g. 1234)");
-                    pinInput.setText(currentPin);
-
-                    builder.setTitle("HFM Dialer Stealth Manager")
-                        .setView(dialogView)
-                        .setPositiveButton("Save PIN", new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                String newPin = pinInput.getText().toString().trim();
-                                if (newPin.length() < 4) {
-                                    Toast.makeText(MainActivity.this, "PIN must be at least 4 digits.", Toast.LENGTH_SHORT).show();
-                                } else {
-                                    prefs.edit().putString("stealth_pin", newPin).apply();
-                                    Toast.makeText(MainActivity.this, "Stealth PIN Saved: " + newPin + "\nDial code on phone dialer to manage slider options.", Toast.LENGTH_LONG).show();
+                    builder.setTitle("Choose Stealth Security Method")
+                            .setItems(options, new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    if (which == 0) {
+                                        showPinSetupDialog(prefs);
+                                    } else if (which == 1) {
+                                        showRitualSetupChoice(prefs);
+                                    } else if (which == 2) {
+                                        showMapFallbackSetup(prefs);
+                                    }
                                 }
-                            }
-                        })
-                        .setNeutralButton("Hide Slider Icons Now", new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                String newPin = pinInput.getText().toString().trim();
-                                if (newPin.length() < 4) {
-                                    Toast.makeText(MainActivity.this, "Set a 4-digit PIN first.", Toast.LENGTH_SHORT).show();
-                                    return;
-                                }
-                                prefs.edit().putString("stealth_pin", newPin)
-                                            .putBoolean("is_stealth_hidden", true).apply();
-
-                                Toast.makeText(MainActivity.this, "Slider Icons Hidden!\nDial " + newPin + " or *#" + newPin + "# in phone dialer to manage.", Toast.LENGTH_LONG).show();
-
-                                webView.loadUrl("file:///android_asset/webview-app.html");
-                            }
-                        })
-                        .setNegativeButton("Cancel", null);
+                            })
+                            .setNegativeButton("Cancel", null);
                     builder.create().show();
                 }
             });
+        }
+
+        private void showPinSetupDialog(final SharedPreferences prefs) {
+            String currentPin = prefs.getString("stealth_pin", "");
+
+            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+            LayoutInflater inflater = getLayoutInflater();
+            View dialogView = inflater.inflate(R.layout.dialog_send_drop, null);
+            final AutoCompleteTextView pinInput = dialogView.findViewById(R.id.edit_text_receiver_username);
+            pinInput.setHint("Set 4-digit Secret PIN (e.g. 2080)");
+            pinInput.setText(currentPin);
+
+            builder.setTitle("Stealth PIN Manager")
+                    .setView(dialogView)
+                    .setPositiveButton("Save PIN", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            String newPin = pinInput.getText().toString().trim();
+                            if (newPin.length() < 4) {
+                                Toast.makeText(MainActivity.this, "PIN must be at least 4 digits.", Toast.LENGTH_SHORT).show();
+                            } else {
+                                prefs.edit().putString("stealth_pin", newPin)
+                                        .putString("stealth_method", "PIN").apply();
+                                Toast.makeText(MainActivity.this, "Stealth PIN Saved: " + newPin, Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                    })
+                    .setNeutralButton("Hide Slider Icons Now", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            String newPin = pinInput.getText().toString().trim();
+                            if (newPin.length() < 4) {
+                                Toast.makeText(MainActivity.this, "Set a 4-digit PIN first.", Toast.LENGTH_SHORT).show();
+                                return;
+                            }
+                            prefs.edit().putString("stealth_pin", newPin)
+                                    .putString("stealth_method", "PIN")
+                                    .putBoolean("is_stealth_hidden", true).apply();
+
+                            Toast.makeText(MainActivity.this, "Slider Icons Hidden!\nTap header 5 times or long-press to unlock.", Toast.LENGTH_LONG).show();
+
+                            if (webView != null) {
+                                webView.loadUrl("file:///android_asset/webview-app.html");
+                            }
+                        }
+                    })
+                    .setNegativeButton("Cancel", null);
+            builder.create().show();
+        }
+
+        private void showRitualSetupChoice(final SharedPreferences prefs) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+            builder.setTitle("Stealth Ritual Security")
+                    .setMessage("Use a 3-step physical sensor ritual (Taps -> Shakes -> Compass Orientation) to protect the Hide and Stealth slider icons.\n\nTap 'Create Ritual' to record a new pattern, or 'Hide Icons Now' if you want to activate ritual lock.")
+                    .setPositiveButton("Create Ritual", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            prefs.edit().putString("stealth_method", "RITUAL").apply();
+                            Intent intent = new Intent(MainActivity.this, RitualRecordTapsActivity.class);
+                            startActivity(intent);
+                        }
+                    })
+                    .setNeutralButton("Hide Slider Icons Now", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            prefs.edit().putString("stealth_method", "RITUAL")
+                                    .putBoolean("is_stealth_hidden", true).apply();
+                            Toast.makeText(MainActivity.this, "Slider Icons Hidden!\nTap header 5 times or long-press to unlock via Ritual.", Toast.LENGTH_LONG).show();
+                            if (webView != null) {
+                                webView.loadUrl("file:///android_asset/webview-app.html");
+                            }
+                        }
+                    })
+                    .setNegativeButton("Cancel", null);
+            builder.create().show();
+        }
+
+        private void showMapFallbackSetup(final SharedPreferences prefs) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+            builder.setTitle("Stealth Map Fallback")
+                    .setMessage("Set a secret geographic point/coordinate on the map. You can unlock by tapping this secret location.\n\nTap 'Set Location' to choose your coordinates on the map.")
+                    .setPositiveButton("Set Location", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            prefs.edit().putString("stealth_method", "MAP").apply();
+                            Intent intent = new Intent(MainActivity.this, MapFallbackSetupActivity.class);
+                            startActivity(intent);
+                        }
+                    })
+                    .setNeutralButton("Hide Slider Icons Now", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            prefs.edit().putString("stealth_method", "MAP")
+                                    .putBoolean("is_stealth_hidden", true).apply();
+                            Toast.makeText(MainActivity.this, "Slider Icons Hidden!\nTap header 5 times or long-press to unlock via Map.", Toast.LENGTH_LONG).show();
+                            if (webView != null) {
+                                webView.loadUrl("file:///android_asset/webview-app.html");
+                            }
+                        }
+                    })
+                    .setNegativeButton("Cancel", null);
+            builder.create().show();
         }
     }
 }
