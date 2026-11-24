@@ -14,22 +14,32 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.biometric.BiometricManager;
 import androidx.biometric.BiometricPrompt;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
+import java.util.List;
 import java.util.concurrent.Executor;
 
 /**
- * Hybrid gate activity invoked via dialer notification.
- * Enables or disables the visibility of stealth options inside HFM slider menu
- * using Fingerprint scan with automatic Stealth PIN fallback.
+ * Gate activity to manage Hide & Stealth slider icons visibility.
+ * Supports 3 security verification methods:
+ * 1. 4-digit PIN / Biometric (Fingerprint)
+ * 2. 3-step Physical Sensor Ritual (Taps -> Shakes -> Compass Orientation)
+ * 3. Map Coordinate Fallback (Pin-drop geographic verification)
  */
 public class StealthUnlockActivity extends FragmentActivity {
 
+    public static final int REQUEST_CODE_RITUAL = 881;
+    public static final int REQUEST_CODE_MAP = 882;
+    public static boolean sStealthUnlocked = false;
+
     private TextView tvDescription;
     private Button btnToggle;
+    private Button btnRitual;
+    private Button btnMap;
     private Button btnCancel;
 
     private BiometricPrompt biometricPrompt;
@@ -42,8 +52,12 @@ public class StealthUnlockActivity extends FragmentActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_stealth_unlock);
 
+        sStealthUnlocked = false;
+
         tvDescription = findViewById(R.id.tv_stealth_description);
         btnToggle = findViewById(R.id.btn_stealth_toggle);
+        btnRitual = findViewById(R.id.btn_stealth_ritual);
+        btnMap = findViewById(R.id.btn_stealth_map);
         btnCancel = findViewById(R.id.btn_stealth_cancel);
 
         SharedPreferences prefs = getSharedPreferences("hfm_stealth_prefs", Context.MODE_PRIVATE);
@@ -52,13 +66,7 @@ public class StealthUnlockActivity extends FragmentActivity {
         updateUI();
         setupBiometrics();
 
-        btnCancel.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                finish();
-            }
-        });
-
+        // 1. PIN / Biometric Option
         btnToggle.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -70,20 +78,80 @@ public class StealthUnlockActivity extends FragmentActivity {
                 if (canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS) {
                     biometricPrompt.authenticate(promptInfo);
                 } else {
-                    // Fingerprint not enrolled or hardware unavailable -> fallback directly to PIN
+                    // Fallback directly to PIN
                     showPinFallbackDialog();
                 }
             }
         });
+
+        // 2. Physical Sensor Ritual Option
+        if (btnRitual != null) {
+            btnRitual.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    RitualManager ritualManager = new RitualManager();
+                    List<RitualManager.Ritual> rituals = ritualManager.loadRituals(StealthUnlockActivity.this);
+
+                    if (rituals != null && !rituals.isEmpty()) {
+                        Intent intent = new Intent(StealthUnlockActivity.this, RitualVerifyTapsActivity.class);
+                        intent.putExtra("ritual_index", 0);
+                        intent.putExtra("is_stealth_unlock", true);
+                        startActivityForResult(intent, REQUEST_CODE_RITUAL);
+                    } else {
+                        Toast.makeText(StealthUnlockActivity.this, "No saved Ritual found. Please use PIN or create a Ritual first.", Toast.LENGTH_LONG).show();
+                    }
+                }
+            });
+        }
+
+        // 3. Map Coordinate Fallback Option
+        if (btnMap != null) {
+            btnMap.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    Intent intent = new Intent(StealthUnlockActivity.this, MapFallbackUnlockActivity.class);
+                    intent.putExtra("is_stealth_unlock", true);
+                    startActivityForResult(intent, REQUEST_CODE_MAP);
+                }
+            });
+        }
+
+        btnCancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                finish();
+            }
+        });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (sStealthUnlocked) {
+            sStealthUnlocked = false;
+            executeToggle();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if ((requestCode == REQUEST_CODE_RITUAL || requestCode == REQUEST_CODE_MAP) && resultCode == RESULT_OK) {
+            executeToggle();
+        }
     }
 
     private void updateUI() {
         if (isCurrentlyHidden) {
-            tvDescription.setText("Identity Verified. Would you like to RESTORE (UNHIDE) the HFM Hide & Stealth slider options?");
-            btnToggle.setText("UNHIDE SLIDER OPTIONS");
+            tvDescription.setText("Identity Verification Required.\nChoose your verification method to RESTORE (UNHIDE) the HFM Hide & Stealth slider options:");
+            btnToggle.setText("1. UNHIDE VIA PIN / FINGERPRINT");
+            if (btnRitual != null) btnRitual.setText("2. UNHIDE VIA SENSOR RITUAL");
+            if (btnMap != null) btnMap.setText("3. UNHIDE VIA MAP FALLBACK");
         } else {
-            tvDescription.setText("Identity Verified. Would you like to HIDE the HFM Hide & Stealth slider options?");
-            btnToggle.setText("HIDE SLIDER OPTIONS");
+            tvDescription.setText("Identity Verification Required.\nChoose your verification method to HIDE the HFM Hide & Stealth slider options:");
+            btnToggle.setText("1. HIDE VIA PIN / FINGERPRINT");
+            if (btnRitual != null) btnRitual.setText("2. HIDE VIA SENSOR RITUAL");
+            if (btnMap != null) btnMap.setText("3. HIDE VIA MAP FALLBACK");
         }
     }
 
@@ -99,7 +167,6 @@ public class StealthUnlockActivity extends FragmentActivity {
             @Override
             public void onAuthenticationError(int errorCode, @NonNull CharSequence errString) {
                 super.onAuthenticationError(errorCode, errString);
-                // On error (e.g. no fingerprints, hardware disabled, or user clicked "Use PIN") -> open PIN dialog
                 showPinFallbackDialog();
             }
 
@@ -118,8 +185,7 @@ public class StealthUnlockActivity extends FragmentActivity {
     }
 
     /**
-     * Fallback authentication method when fingerprint is unavailable or fails.
-     * Prompts for the 4-digit PIN configured in Stealth Manager.
+     * Fallback authentication method prompting for the 4-digit PIN.
      */
     private void showPinFallbackDialog() {
         if (isFinishing() || isDestroyed()) return;
