@@ -5,11 +5,13 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.location.Location;
 import android.os.Bundle;
-import android.view.LayoutInflater;
+import android.text.InputType;
 import android.view.View;
-import android.widget.AutoCompleteTextView;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -20,7 +22,6 @@ import androidx.biometric.BiometricPrompt;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
-import java.util.List;
 import java.util.concurrent.Executor;
 
 /**
@@ -89,16 +90,34 @@ public class StealthUnlockActivity extends FragmentActivity {
             btnRitual.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    RitualManager ritualManager = new RitualManager();
-                    List<RitualManager.Ritual> rituals = ritualManager.loadRituals(StealthUnlockActivity.this);
+                    SharedPreferences prefs = getSharedPreferences("hfm_stealth_prefs", Context.MODE_PRIVATE);
+                    boolean hasStealthRitual = prefs.getBoolean("stealth_ritual_configured", false);
 
-                    if (rituals != null && !rituals.isEmpty()) {
+                    if (hasStealthRitual) {
+                        int taps = prefs.getInt("stealth_ritual_taps", 0);
+                        int shakes = prefs.getInt("stealth_ritual_shakes", 0);
+                        float[] mag = new float[]{
+                                prefs.getFloat("stealth_ritual_mag_x", 0f),
+                                prefs.getFloat("stealth_ritual_mag_y", 0f),
+                                prefs.getFloat("stealth_ritual_mag_z", 0f)
+                        };
+                        Location loc = new Location("stealth");
+                        loc.setLatitude(Double.longBitsToDouble(prefs.getLong("stealth_ritual_lat_bits", 0L)));
+                        loc.setLongitude(Double.longBitsToDouble(prefs.getLong("stealth_ritual_lon_bits", 0L)));
+
+                        RitualManager.Ritual stealthRitual = new RitualManager.Ritual(taps, shakes, mag, loc);
+                        if (prefs.getBoolean("stealth_map_configured", false)) {
+                            stealthRitual.fallbackLatitude = Double.longBitsToDouble(prefs.getLong("stealth_map_lat_bits", 0L));
+                            stealthRitual.fallbackLongitude = Double.longBitsToDouble(prefs.getLong("stealth_map_lon_bits", 0L));
+                        }
+
                         Intent intent = new Intent(StealthUnlockActivity.this, RitualVerifyTapsActivity.class);
-                        intent.putExtra("ritual_index", 0);
+                        intent.putExtra(RitualListActivity.EXTRA_SELECTED_RITUAL, stealthRitual);
+                        intent.putExtra(RitualListActivity.EXTRA_SELECTED_RITUAL_INDEX, 0);
                         intent.putExtra("is_stealth_unlock", true);
                         startActivityForResult(intent, REQUEST_CODE_RITUAL);
                     } else {
-                        Toast.makeText(StealthUnlockActivity.this, "No saved Ritual found. Please use PIN or create a Ritual first.", Toast.LENGTH_LONG).show();
+                        Toast.makeText(StealthUnlockActivity.this, "No saved Stealth Ritual found. Please use PIN or create a Stealth Ritual first.", Toast.LENGTH_LONG).show();
                     }
                 }
             });
@@ -109,9 +128,19 @@ public class StealthUnlockActivity extends FragmentActivity {
             btnMap.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    Intent intent = new Intent(StealthUnlockActivity.this, MapFallbackUnlockActivity.class);
-                    intent.putExtra("is_stealth_unlock", true);
-                    startActivityForResult(intent, REQUEST_CODE_MAP);
+                    SharedPreferences prefs = getSharedPreferences("hfm_stealth_prefs", Context.MODE_PRIVATE);
+                    if (prefs.getBoolean("stealth_map_configured", false)) {
+                        double lat = Double.longBitsToDouble(prefs.getLong("stealth_map_lat_bits", 0L));
+                        double lon = Double.longBitsToDouble(prefs.getLong("stealth_map_lon_bits", 0L));
+
+                        Intent intent = new Intent(StealthUnlockActivity.this, MapFallbackUnlockActivity.class);
+                        intent.putExtra("is_stealth_unlock", true);
+                        intent.putExtra("stealth_map_lat", lat);
+                        intent.putExtra("stealth_map_lon", lon);
+                        startActivityForResult(intent, REQUEST_CODE_MAP);
+                    } else {
+                        Toast.makeText(StealthUnlockActivity.this, "No saved Stealth Map location found. Please use PIN or set a Map location first.", Toast.LENGTH_LONG).show();
+                    }
                 }
             });
         }
@@ -137,6 +166,7 @@ public class StealthUnlockActivity extends FragmentActivity {
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if ((requestCode == REQUEST_CODE_RITUAL || requestCode == REQUEST_CODE_MAP) && resultCode == RESULT_OK) {
+            sStealthUnlocked = false;
             executeToggle();
         }
     }
@@ -191,13 +221,18 @@ public class StealthUnlockActivity extends FragmentActivity {
         if (isFinishing() || isDestroyed()) return;
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        LayoutInflater inflater = getLayoutInflater();
-        View dialogView = inflater.inflate(R.layout.dialog_send_drop, null);
-        final AutoCompleteTextView pinInput = dialogView.findViewById(R.id.edit_text_receiver_username);
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (20 * getResources().getDisplayMetrics().density);
+        container.setPadding(pad, pad / 2, pad, pad / 4);
+
+        final EditText pinInput = new EditText(this);
+        pinInput.setInputType(InputType.TYPE_CLASS_NUMBER);
         pinInput.setHint("Enter 4-digit Stealth PIN");
+        container.addView(pinInput);
 
         builder.setTitle("Enter Stealth Manager PIN")
-                .setView(dialogView)
+                .setView(container)
                 .setPositiveButton("Verify", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
