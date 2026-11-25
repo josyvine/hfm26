@@ -3,6 +3,7 @@ package com.vineyard.hfm.app;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.location.Location;
 import android.os.Bundle;
@@ -34,7 +35,10 @@ public class MapFallbackUnlockActivity extends Activity {
     private TextView matchStatusTextMap;
 
     private RitualManager.Ritual ritualToVerify;
-    private int ritualIndex;
+    private int ritualIndex = -1;
+    private boolean isStealthUnlock = false;
+    private Double stealthTargetLat = null;
+    private Double stealthTargetLon = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,16 +52,37 @@ public class MapFallbackUnlockActivity extends Activity {
 
         setContentView(R.layout.activity_map_fallback_unlock);
 
-        // Retrieve data from the previous activity
-        Serializable ritualSerializable = getIntent().getSerializableExtra(RitualListActivity.EXTRA_SELECTED_RITUAL);
-        ritualIndex = getIntent().getIntExtra(RitualListActivity.EXTRA_SELECTED_RITUAL_INDEX, -1);
+        isStealthUnlock = getIntent().getBooleanExtra("is_stealth_unlock", false);
 
-        if (!(ritualSerializable instanceof RitualManager.Ritual) || ritualIndex == -1) {
-            Toast.makeText(this, "Error: Incomplete data for map verification.", Toast.LENGTH_LONG).show();
-            finish();
-            return;
+        if (isStealthUnlock) {
+            if (getIntent().hasExtra("stealth_map_lat") && getIntent().hasExtra("stealth_map_lon")) {
+                stealthTargetLat = getIntent().getDoubleExtra("stealth_map_lat", 0.0);
+                stealthTargetLon = getIntent().getDoubleExtra("stealth_map_lon", 0.0);
+            } else {
+                SharedPreferences prefs = getSharedPreferences("hfm_stealth_prefs", Context.MODE_PRIVATE);
+                if (prefs.getBoolean("stealth_map_configured", false)) {
+                    stealthTargetLat = Double.longBitsToDouble(prefs.getLong("stealth_map_lat_bits", 0L));
+                    stealthTargetLon = Double.longBitsToDouble(prefs.getLong("stealth_map_lon_bits", 0L));
+                }
+            }
+
+            if (stealthTargetLat == null || stealthTargetLon == null) {
+                Toast.makeText(this, "Error: Stealth map location not found.", Toast.LENGTH_LONG).show();
+                finish();
+                return;
+            }
+        } else {
+            // Retrieve data from the previous activity
+            Serializable ritualSerializable = getIntent().getSerializableExtra(RitualListActivity.EXTRA_SELECTED_RITUAL);
+            ritualIndex = getIntent().getIntExtra(RitualListActivity.EXTRA_SELECTED_RITUAL_INDEX, -1);
+
+            if (!(ritualSerializable instanceof RitualManager.Ritual) || ritualIndex == -1) {
+                Toast.makeText(this, "Error: Incomplete data for map verification.", Toast.LENGTH_LONG).show();
+                finish();
+                return;
+            }
+            ritualToVerify = (RitualManager.Ritual) ritualSerializable;
         }
-        ritualToVerify = (RitualManager.Ritual) ritualSerializable;
 
         initializeViews();
         setupMap();
@@ -113,15 +138,25 @@ public class MapFallbackUnlockActivity extends Activity {
         verifyLocationButton.setOnClickListener(new View.OnClickListener() {
 				@Override
 				public void onClick(View v) {
-					// The button is only enabled if there's a match,
-					// so we can proceed directly to decryption.
-					performMapFallbackDecryption();
+					if (isStealthUnlock) {
+						StealthUnlockActivity.sStealthUnlocked = true;
+						setResult(RESULT_OK);
+						Toast.makeText(MapFallbackUnlockActivity.this, "Location Verified! Stealth Unlocked.", Toast.LENGTH_SHORT).show();
+						finish();
+					} else {
+						// The button is only enabled if there's a match,
+						// so we can proceed directly to decryption.
+						performMapFallbackDecryption();
+					}
 				}
 			});
     }
 
     private void checkLocationMatch() {
-        if (ritualToVerify.fallbackLatitude == null || ritualToVerify.fallbackLongitude == null) {
+        Double targetLat = isStealthUnlock ? stealthTargetLat : (ritualToVerify != null ? ritualToVerify.fallbackLatitude : null);
+        Double targetLon = isStealthUnlock ? stealthTargetLon : (ritualToVerify != null ? ritualToVerify.fallbackLongitude : null);
+
+        if (targetLat == null || targetLon == null) {
             matchStatusTextMap.setText("Status: No Fallback Set");
             return;
         }
@@ -136,8 +171,8 @@ public class MapFallbackUnlockActivity extends Activity {
 
         // Get the stored secret location
         Location secretLocation = new Location("secret_fallback");
-        secretLocation.setLatitude(ritualToVerify.fallbackLatitude);
-        secretLocation.setLongitude(ritualToVerify.fallbackLongitude);
+        secretLocation.setLatitude(targetLat);
+        secretLocation.setLongitude(targetLon);
 
         // Check if the locations match within the tolerance
         float distance = selectedLocation.distanceTo(secretLocation);
@@ -182,4 +217,3 @@ public class MapFallbackUnlockActivity extends Activity {
         mapView.onPause();
     }
 }
-
