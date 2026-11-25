@@ -26,6 +26,7 @@ public class RitualVerifyTapsActivity extends Activity {
     private int performedTapCount = 0;
     private RitualManager.Ritual ritualToVerify;
     private int ritualIndex;
+    private boolean isStealthUnlock = false;
 
     private final Handler tapTimeoutHandler = new Handler();
     private final long TAP_TIMEOUT = 1500; // 1.5 seconds
@@ -37,6 +38,7 @@ public class RitualVerifyTapsActivity extends Activity {
         setContentView(R.layout.activity_ritual_verify_taps);
 
         // Retrieve the ritual object from the list activity
+        isStealthUnlock = getIntent().getBooleanExtra("is_stealth_unlock", false);
         Serializable ritualSerializable = getIntent().getSerializableExtra(RitualListActivity.EXTRA_SELECTED_RITUAL);
         ritualIndex = getIntent().getIntExtra(RitualListActivity.EXTRA_SELECTED_RITUAL_INDEX, -1);
 
@@ -60,7 +62,7 @@ public class RitualVerifyTapsActivity extends Activity {
         closeButton = findViewById(R.id.close_button_ritual_verify_taps);
         titleText = findViewById(R.id.title_text_verify_taps);
 
-        titleText.setText("Unlock Ritual #" + (ritualIndex + 1) + " (Step 1 of 3)");
+        titleText.setText(isStealthUnlock ? "Unlock Stealth (Step 1 of 3)" : "Unlock Ritual #" + (ritualIndex + 1) + " (Step 1 of 3)");
     }
 
     private void setupListeners() {
@@ -121,6 +123,7 @@ public class RitualVerifyTapsActivity extends Activity {
             intent.putExtra(RitualListActivity.EXTRA_SELECTED_RITUAL, ritualToVerify);
             intent.putExtra(RitualListActivity.EXTRA_SELECTED_RITUAL_INDEX, ritualIndex);
             intent.putExtra(EXTRA_VERIFIED_TAP_COUNT, performedTapCount);
+            intent.putExtra("is_stealth_unlock", isStealthUnlock);
             startActivity(intent);
 
         } else {
@@ -145,4 +148,3 @@ public class RitualVerifyTapsActivity extends Activity {
         tapTimeoutHandler.removeCallbacks(tapTimeoutRunnable);
     }
 }
-
