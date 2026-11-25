@@ -3,6 +3,7 @@ package com.vineyard.hfm.app;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.view.View;
@@ -22,6 +23,7 @@ public class MapFallbackSetupActivity extends Activity {
     private Button saveLocationButton;
 
     private int ritualIndexToUpdate = -1;
+    private boolean isStealthMode = false;
     private RitualManager ritualManager;
 
     @Override
@@ -38,9 +40,10 @@ public class MapFallbackSetupActivity extends Activity {
 
         ritualManager = new RitualManager();
         Intent intent = getIntent();
+        isStealthMode = intent.getBooleanExtra("is_stealth_mode", false);
         ritualIndexToUpdate = intent.getIntExtra(EXTRA_RITUAL_INDEX_TO_UPDATE, -1);
 
-        if (ritualIndexToUpdate == -1) {
+        if (!isStealthMode && ritualIndexToUpdate == -1) {
             Toast.makeText(this, "Error: No ritual specified to update.", Toast.LENGTH_LONG).show();
             finish();
             return;
@@ -78,6 +81,20 @@ public class MapFallbackSetupActivity extends Activity {
         double latitude = mapCenter.getLatitude();
         double longitude = mapCenter.getLongitude();
 
+        if (isStealthMode) {
+            SharedPreferences prefs = getSharedPreferences("hfm_stealth_prefs", Context.MODE_PRIVATE);
+            prefs.edit()
+                    .putBoolean("stealth_map_configured", true)
+                    .putString("stealth_method", "MAP")
+                    .putLong("stealth_map_lat_bits", Double.doubleToLongBits(latitude))
+                    .putLong("stealth_map_lon_bits", Double.doubleToLongBits(longitude))
+                    .apply();
+
+            Toast.makeText(this, "Stealth Secret Location Saved.", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+
         List<RitualManager.Ritual> rituals = ritualManager.loadRituals(this);
 
         if (rituals != null && ritualIndexToUpdate >= 0 && ritualIndexToUpdate < rituals.size()) {
@@ -106,4 +123,3 @@ public class MapFallbackSetupActivity extends Activity {
         mapView.onPause();  //needed for compass, my location overlays, v6.0.0 and up
     }
 }
-
