@@ -16,6 +16,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
+import android.text.InputType;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -25,6 +26,7 @@ import android.webkit.WebView;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -707,14 +709,19 @@ public class MainActivity extends Activity {
             String currentPin = prefs.getString("stealth_pin", "");
 
             AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-            LayoutInflater inflater = getLayoutInflater();
-            View dialogView = inflater.inflate(R.layout.dialog_send_drop, null);
-            final AutoCompleteTextView pinInput = dialogView.findViewById(R.id.edit_text_receiver_username);
+            LinearLayout container = new LinearLayout(MainActivity.this);
+            container.setOrientation(LinearLayout.VERTICAL);
+            int pad = (int) (20 * getResources().getDisplayMetrics().density);
+            container.setPadding(pad, pad / 2, pad, pad / 4);
+
+            final EditText pinInput = new EditText(MainActivity.this);
+            pinInput.setInputType(InputType.TYPE_CLASS_NUMBER);
             pinInput.setHint("Set 4-digit Secret PIN (e.g. 2080)");
             pinInput.setText(currentPin);
+            container.addView(pinInput);
 
             builder.setTitle("Stealth PIN Manager")
-                    .setView(dialogView)
+                    .setView(container)
                     .setPositiveButton("Save PIN", new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
@@ -740,7 +747,7 @@ public class MainActivity extends Activity {
                                     .putString("stealth_method", "PIN")
                                     .putBoolean("is_stealth_hidden", true).apply();
 
-                            Toast.makeText(MainActivity.this, "Slider Icons Hidden!\nTap header 5 times or long-press to unlock.", Toast.LENGTH_LONG).show();
+                            Toast.makeText(MainActivity.this, "Slider Icons Hidden!\nTap 'Hybrid File Manager' title 5 times or long-press to unlock.", Toast.LENGTH_LONG).show();
 
                             if (webView != null) {
                                 webView.loadUrl("file:///android_asset/webview-app.html");
@@ -760,6 +767,7 @@ public class MainActivity extends Activity {
                         public void onClick(DialogInterface dialog, int which) {
                             prefs.edit().putString("stealth_method", "RITUAL").apply();
                             Intent intent = new Intent(MainActivity.this, RitualRecordTapsActivity.class);
+                            intent.putExtra("is_stealth_mode", true);
                             startActivity(intent);
                         }
                     })
@@ -768,7 +776,7 @@ public class MainActivity extends Activity {
                         public void onClick(DialogInterface dialog, int which) {
                             prefs.edit().putString("stealth_method", "RITUAL")
                                     .putBoolean("is_stealth_hidden", true).apply();
-                            Toast.makeText(MainActivity.this, "Slider Icons Hidden!\nTap header 5 times or long-press to unlock via Ritual.", Toast.LENGTH_LONG).show();
+                            Toast.makeText(MainActivity.this, "Slider Icons Hidden!\nTap 'Hybrid File Manager' title 5 times or long-press to unlock via Ritual.", Toast.LENGTH_LONG).show();
                             if (webView != null) {
                                 webView.loadUrl("file:///android_asset/webview-app.html");
                             }
@@ -787,6 +795,7 @@ public class MainActivity extends Activity {
                         public void onClick(DialogInterface dialog, int which) {
                             prefs.edit().putString("stealth_method", "MAP").apply();
                             Intent intent = new Intent(MainActivity.this, MapFallbackSetupActivity.class);
+                            intent.putExtra("is_stealth_mode", true);
                             startActivity(intent);
                         }
                     })
@@ -795,7 +804,7 @@ public class MainActivity extends Activity {
                         public void onClick(DialogInterface dialog, int which) {
                             prefs.edit().putString("stealth_method", "MAP")
                                     .putBoolean("is_stealth_hidden", true).apply();
-                            Toast.makeText(MainActivity.this, "Slider Icons Hidden!\nTap header 5 times or long-press to unlock via Map.", Toast.LENGTH_LONG).show();
+                            Toast.makeText(MainActivity.this, "Slider Icons Hidden!\nTap 'Hybrid File Manager' title 5 times or long-press to unlock via Map.", Toast.LENGTH_LONG).show();
                             if (webView != null) {
                                 webView.loadUrl("file:///android_asset/webview-app.html");
                             }
