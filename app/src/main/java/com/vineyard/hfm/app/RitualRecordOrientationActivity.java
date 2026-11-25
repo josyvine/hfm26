@@ -7,6 +7,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.hardware.Sensor;
@@ -53,6 +54,7 @@ public class RitualRecordOrientationActivity extends Activity implements SensorE
     private int tapCount;
     private int shakeCount;
     private List<File> filesToHide;
+    private boolean isStealthMode = false;
 
     // --- LIVE Sensor data arrays ---
     private final float[] accelerometerReading = new float[3];
@@ -79,16 +81,19 @@ public class RitualRecordOrientationActivity extends Activity implements SensorE
         setContentView(R.layout.activity_ritual_record_orientation);
 
         // Retrieve data from the previous activities
+        isStealthMode = getIntent().getBooleanExtra(RitualRecordTapsActivity.EXTRA_IS_STEALTH_MODE, false);
         Serializable fileListSerializable = getIntent().getSerializableExtra(RitualRecordTapsActivity.EXTRA_FILES_TO_HIDE);
         tapCount = getIntent().getIntExtra(RitualRecordTapsActivity.EXTRA_TAP_COUNT, 0);
         shakeCount = getIntent().getIntExtra(RitualRecordShakesActivity.EXTRA_SHAKE_COUNT, 0);
 
-        if (!(fileListSerializable instanceof List) || tapCount == 0 || shakeCount == 0) {
+        if ((!isStealthMode && !(fileListSerializable instanceof List)) || tapCount == 0 || shakeCount == 0) {
             Toast.makeText(this, "Error: Incomplete ritual data received.", Toast.LENGTH_LONG).show();
             finish();
             return;
         }
-        filesToHide = (List<File>) fileListSerializable;
+        if (fileListSerializable instanceof List) {
+            filesToHide = (List<File>) fileListSerializable;
+        }
 
         initializeViews();
         initializeSensors();
@@ -197,16 +202,32 @@ public class RitualRecordOrientationActivity extends Activity implements SensorE
                         return;
                     }
 
-					RitualManager ritualManager = new RitualManager();
-                    // --- FIX: Use the LOCKED data for creating the ritual ---
-					ritualManager.createAndSaveRitual(
-						getApplicationContext(),
-						tapCount,
-						shakeCount,
-						lockedMagnetometerReading,
-						lockedLocation,
-						filesToHide
-					);
+                    if (isStealthMode) {
+                        SharedPreferences prefs = getSharedPreferences("hfm_stealth_prefs", Context.MODE_PRIVATE);
+                        prefs.edit()
+                                .putBoolean("stealth_ritual_configured", true)
+                                .putString("stealth_method", "RITUAL")
+                                .putInt("stealth_ritual_taps", tapCount)
+                                .putInt("stealth_ritual_shakes", shakeCount)
+                                .putFloat("stealth_ritual_mag_x", lockedMagnetometerReading[0])
+                                .putFloat("stealth_ritual_mag_y", lockedMagnetometerReading[1])
+                                .putFloat("stealth_ritual_mag_z", lockedMagnetometerReading[2])
+                                .putLong("stealth_ritual_lat_bits", Double.doubleToLongBits(lockedLocation.getLatitude()))
+                                .putLong("stealth_ritual_lon_bits", Double.doubleToLongBits(lockedLocation.getLongitude()))
+                                .apply();
+                        Toast.makeText(RitualRecordOrientationActivity.this, "Stealth Ritual saved! Tap 'Hide Icons Now' in Stealth Manager to lock.", Toast.LENGTH_LONG).show();
+                    } else {
+                        RitualManager ritualManager = new RitualManager();
+                        // --- FIX: Use the LOCKED data for creating the ritual ---
+                        ritualManager.createAndSaveRitual(
+                            getApplicationContext(),
+                            tapCount,
+                            shakeCount,
+                            lockedMagnetometerReading,
+                            lockedLocation,
+                            filesToHide
+                        );
+                    }
 
 					// Return to the main activity after starting the background task
 					Intent intent = new Intent(RitualRecordOrientationActivity.this, MainActivity.class);
@@ -353,4 +374,3 @@ public class RitualRecordOrientationActivity extends Activity implements SensorE
         }
     }
 }
-
