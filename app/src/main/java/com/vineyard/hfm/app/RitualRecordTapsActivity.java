@@ -19,6 +19,7 @@ public class RitualRecordTapsActivity extends Activity {
 
     public static final String EXTRA_FILES_TO_HIDE = "files_to_hide";
     public static final String EXTRA_TAP_COUNT = "tap_count";
+    public static final String EXTRA_IS_STEALTH_MODE = "is_stealth_mode";
 
     private RelativeLayout tapArea;
     private TextView tapCountText;
@@ -27,6 +28,7 @@ public class RitualRecordTapsActivity extends Activity {
 
     private int tapCount = 0;
     private List<File> filesToHide;
+    private boolean isStealthMode = false;
 
     // Use a handler to detect when the user has stopped tapping
     private final Handler tapTimeoutHandler = new Handler();
@@ -38,11 +40,13 @@ public class RitualRecordTapsActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_ritual_record_taps);
 
+        isStealthMode = getIntent().getBooleanExtra(EXTRA_IS_STEALTH_MODE, false);
+
         // Retrieve the list of files from the previous activity
         Serializable fileListSerializable = getIntent().getSerializableExtra(EXTRA_FILES_TO_HIDE);
         if (fileListSerializable instanceof List) {
             filesToHide = (List<File>) fileListSerializable;
-        } else {
+        } else if (!isStealthMode) {
             Toast.makeText(this, "Error: File list not provided.", Toast.LENGTH_LONG).show();
             finish();
             return;
@@ -89,8 +93,11 @@ public class RitualRecordTapsActivity extends Activity {
 					if (tapCount > 0) {
 						// --- MODIFICATION: Proceed to the next step of ritual creation (Shakes) ---
 						Intent intent = new Intent(RitualRecordTapsActivity.this, RitualRecordShakesActivity.class);
-						intent.putExtra(EXTRA_FILES_TO_HIDE, (Serializable) filesToHide);
+						if (filesToHide != null) {
+							intent.putExtra(EXTRA_FILES_TO_HIDE, (Serializable) filesToHide);
+						}
 						intent.putExtra(EXTRA_TAP_COUNT, tapCount);
+						intent.putExtra(EXTRA_IS_STEALTH_MODE, isStealthMode);
 						startActivity(intent);
 					} else {
 						Toast.makeText(RitualRecordTapsActivity.this, "You must tap at least once.", Toast.LENGTH_SHORT).show();
@@ -141,4 +148,3 @@ public class RitualRecordTapsActivity extends Activity {
         tapTimeoutHandler.removeCallbacks(tapTimeoutRunnable);
     }
 }
-
