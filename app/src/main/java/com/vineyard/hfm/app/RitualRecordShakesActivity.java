@@ -34,6 +34,7 @@ public class RitualRecordShakesActivity extends Activity implements SensorEventL
     private int tapCount = 0;
     private int shakeCount = 0;
     private List<File> filesToHide;
+    private boolean isStealthMode = false;
 
     // Shake detection parameters
     private static final float SHAKE_THRESHOLD_GRAVITY = 2.7F;
@@ -51,11 +52,14 @@ public class RitualRecordShakesActivity extends Activity implements SensorEventL
         setContentView(R.layout.activity_ritual_record_shakes);
 
         // Retrieve data from the previous activity (Taps)
+        isStealthMode = getIntent().getBooleanExtra(RitualRecordTapsActivity.EXTRA_IS_STEALTH_MODE, false);
         Serializable fileListSerializable = getIntent().getSerializableExtra(RitualRecordTapsActivity.EXTRA_FILES_TO_HIDE);
         tapCount = getIntent().getIntExtra(RitualRecordTapsActivity.EXTRA_TAP_COUNT, 0);
 
-        if (fileListSerializable instanceof List && tapCount > 0) {
-            filesToHide = (List<File>) fileListSerializable;
+        if (tapCount > 0 && (isStealthMode || fileListSerializable instanceof List)) {
+            if (fileListSerializable instanceof List) {
+                filesToHide = (List<File>) fileListSerializable;
+            }
         } else {
             Toast.makeText(this, "Error: Ritual data not provided correctly.", Toast.LENGTH_LONG).show();
             finish();
@@ -104,9 +108,12 @@ public class RitualRecordShakesActivity extends Activity implements SensorEventL
 					if (shakeCount > 0) {
 						// --- MODIFICATION: Proceed to the next step of ritual creation (Orientation) ---
 						Intent intent = new Intent(RitualRecordShakesActivity.this, RitualRecordOrientationActivity.class);
-						intent.putExtra(RitualRecordTapsActivity.EXTRA_FILES_TO_HIDE, (Serializable) filesToHide);
+						if (filesToHide != null) {
+							intent.putExtra(RitualRecordTapsActivity.EXTRA_FILES_TO_HIDE, (Serializable) filesToHide);
+						}
 						intent.putExtra(RitualRecordTapsActivity.EXTRA_TAP_COUNT, tapCount);
 						intent.putExtra(EXTRA_SHAKE_COUNT, shakeCount);
+						intent.putExtra(RitualRecordTapsActivity.EXTRA_IS_STEALTH_MODE, isStealthMode);
 						startActivity(intent);
 					} else {
 						Toast.makeText(RitualRecordShakesActivity.this, "You must shake the device at least once.", Toast.LENGTH_SHORT).show();
@@ -193,4 +200,3 @@ public class RitualRecordShakesActivity extends Activity implements SensorEventL
         }
     };
 }
-
