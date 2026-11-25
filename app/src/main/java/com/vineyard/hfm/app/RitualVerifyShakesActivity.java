@@ -32,6 +32,7 @@ public class RitualVerifyShakesActivity extends Activity implements SensorEventL
     private int verifiedTapCount = 0;
     private RitualManager.Ritual ritualToVerify;
     private int ritualIndex;
+    private boolean isStealthUnlock = false;
 
     // Shake detection parameters
     private static final float SHAKE_THRESHOLD_GRAVITY = 2.7F;
@@ -48,6 +49,7 @@ public class RitualVerifyShakesActivity extends Activity implements SensorEventL
         setContentView(R.layout.activity_ritual_verify_shakes);
 
         // Retrieve data from the previous activity
+        isStealthUnlock = getIntent().getBooleanExtra("is_stealth_unlock", false);
         Serializable ritualSerializable = getIntent().getSerializableExtra(RitualListActivity.EXTRA_SELECTED_RITUAL);
         ritualIndex = getIntent().getIntExtra(RitualListActivity.EXTRA_SELECTED_RITUAL_INDEX, -1);
         verifiedTapCount = getIntent().getIntExtra(RitualVerifyTapsActivity.EXTRA_VERIFIED_TAP_COUNT, 0);
@@ -80,7 +82,7 @@ public class RitualVerifyShakesActivity extends Activity implements SensorEventL
         closeButton = findViewById(R.id.close_button_ritual_verify_shakes);
         titleText = findViewById(R.id.title_text_verify_shakes);
 
-        titleText.setText("Unlock Ritual #" + (ritualIndex + 1) + " (Step 2 of 3)");
+        titleText.setText(isStealthUnlock ? "Unlock Stealth (Step 2 of 3)" : "Unlock Ritual #" + (ritualIndex + 1) + " (Step 2 of 3)");
     }
 
     private void setupListeners() {
@@ -124,6 +126,7 @@ public class RitualVerifyShakesActivity extends Activity implements SensorEventL
             intent.putExtra(RitualListActivity.EXTRA_SELECTED_RITUAL_INDEX, ritualIndex);
             intent.putExtra(RitualVerifyTapsActivity.EXTRA_VERIFIED_TAP_COUNT, verifiedTapCount);
             intent.putExtra(EXTRA_VERIFIED_SHAKE_COUNT, performedShakeCount);
+            intent.putExtra("is_stealth_unlock", isStealthUnlock);
             startActivity(intent);
 
         } else {
@@ -188,4 +191,3 @@ public class RitualVerifyShakesActivity extends Activity implements SensorEventL
         }
     };
 }
-
