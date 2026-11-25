@@ -66,6 +66,7 @@ public class RitualVerifyOrientationActivity extends FragmentActivity implements
     private int ritualIndex;
     private int verifiedTapCount;
     private int verifiedShakeCount;
+    private boolean isStealthUnlock = false;
 
     // Sensor data arrays
     private final float[] accelerometerReading = new float[3];
@@ -89,6 +90,7 @@ public class RitualVerifyOrientationActivity extends FragmentActivity implements
         setContentView(R.layout.activity_ritual_verify_orientation);
 
         // Retrieve data from the previous activity
+        isStealthUnlock = getIntent().getBooleanExtra("is_stealth_unlock", false);
         Serializable ritualSerializable = getIntent().getSerializableExtra(RitualListActivity.EXTRA_SELECTED_RITUAL);
         ritualIndex = getIntent().getIntExtra(RitualListActivity.EXTRA_SELECTED_RITUAL_INDEX, -1);
         verifiedTapCount = getIntent().getIntExtra(RitualVerifyTapsActivity.EXTRA_VERIFIED_TAP_COUNT, 0);
@@ -120,7 +122,7 @@ public class RitualVerifyOrientationActivity extends FragmentActivity implements
         verifyButton = findViewById(R.id.verify_button_orientation);
         useBackupDataButton = findViewById(R.id.use_backup_data_button);
         unlockWithMapFallbackButton = findViewById(R.id.unlock_with_map_fallback_button);
-        titleText.setText("Unlock Ritual #" + (ritualIndex + 1) + " (Step 3 of 3)");
+        titleText.setText(isStealthUnlock ? "Unlock Stealth (Step 3 of 3)" : "Unlock Ritual #" + (ritualIndex + 1) + " (Step 3 of 3)");
     }
 
     private void initializeSensors() {
@@ -157,6 +159,14 @@ public class RitualVerifyOrientationActivity extends FragmentActivity implements
         verifyButton.setOnClickListener(new View.OnClickListener() {
 				@Override
 				public void onClick(View v) {
+					if (isStealthUnlock) {
+						StealthUnlockActivity.sStealthUnlocked = true;
+						setResult(RESULT_OK);
+						Toast.makeText(RitualVerifyOrientationActivity.this, "Ritual Verified! Stealth Unlocked.", Toast.LENGTH_SHORT).show();
+						finish();
+						return;
+					}
+
 					// Call the RitualManager to start the decryption process
 					RitualManager ritualManager = new RitualManager();
 					ritualManager.verifyAndDecryptRitual(getApplicationContext(), ritualToVerify, ritualIndex);
@@ -187,6 +197,7 @@ public class RitualVerifyOrientationActivity extends FragmentActivity implements
                 Intent intent = new Intent(RitualVerifyOrientationActivity.this, MapFallbackUnlockActivity.class);
                 intent.putExtra(RitualListActivity.EXTRA_SELECTED_RITUAL, ritualToVerify);
                 intent.putExtra(RitualListActivity.EXTRA_SELECTED_RITUAL_INDEX, ritualIndex);
+                intent.putExtra("is_stealth_unlock", isStealthUnlock);
                 startActivity(intent);
             }
 
@@ -271,6 +282,14 @@ public class RitualVerifyOrientationActivity extends FragmentActivity implements
             Location backupLocation = new Location("backup");
             backupLocation.setLatitude(Double.longBitsToDouble(latBits));
             backupLocation.setLongitude(Double.longBitsToDouble(lonBits));
+
+            if (isStealthUnlock) {
+                StealthUnlockActivity.sStealthUnlocked = true;
+                setResult(RESULT_OK);
+                Toast.makeText(this, "Backup data verified. Stealth Unlocked!", Toast.LENGTH_SHORT).show();
+                finish();
+                return;
+            }
 
             // Create a new Ritual object using the perfectly reconstructed data.
             RitualManager.Ritual correctedRitual = new RitualManager.Ritual(
@@ -408,4 +427,3 @@ public class RitualVerifyOrientationActivity extends FragmentActivity implements
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {}
 }
-
